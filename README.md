@@ -288,5 +288,79 @@ rm(th,w,z)                  #再次清空。
 q()    #离开R 程序。你可能被提示是否保存R 工作空间
 ```
 
+# FE5209
+## 1 Misc
+1. 自定义函数 `arc <- function(x) 2*asin(sqrt(x))`
+2. 帮助 `help(t.test)` 或者`?rnorm`
+3. 设置路径 `setwd("c:/.../")`
+4. 访问数据框变量： `myData$Learning`
+   用attach之后就可以直接访问 `attach(myData); Learning`
+5. 合并多图
+```
+par(mfrow=c(1,2))
+hist(Learning[Condition=="High"&Group=="A"])
+hist(Learning[Condition=="Low"&Group=="A"])
+```
+6. 检查正态分布：shapiro test `shapiro.test(Learning[Condition=="High"&Group=="A"])`
+7. 变量筛选： step `step(myModel, direction="backward")`
+8. 看数据统计学特征： `boxplot(Learning~Group*Condition,col=c("#ffdddd","#ddddff"))`
+### Rlab_1.R
+```
+setwd("D:\\PRGS\\R")      #设置工作路径
+
+dat = read.csv("Stock_FX_bond.csv",header=TRUE)   #确保文件在工作路径下
+names(dat)        #print the names of the variables in the data set
+attach(dat)       
+par(mfrow=c(1,2)) 
+plot(GM_AC) 
+plot(F_AC)
+n = dim(dat)[1]    #find number of rows in dat
+GMReturn = GM_AC[2:n]/GM_AC[1:(n-1)] - 1
+FReturn = F_AC[2:n]/F_AC[1:(n-1)] - 1 
+par(mfrow=c(1,1)) 
+plot(GMReturn,FReturn)
+
+GMLogReturn = diff(log(GM_AC)) 
+cor(GMLogReturn,GMReturn) 
+```
+## 2 Regression
+### Rlab2_1.R
+```
+#This section uses the data set USMacroG in R's AER package
+install.packages("AER")
+library(AER)
+data("USMacroG")   
+MacroDiff= apply(USMacroG,2,diff)  #向量化运算， 2表示column
+consumption = MacroDiff[,2]  
+dpi= MacroDiff[,5]
+cpi= MacroDiff[,6]
+government= MacroDiff[,4]
+unemp= MacroDiff[,9]
+
+pairs(cbind(consumption,dpi,cpi,government,unemp))  #cbind列与列合并，pairs：create a scatterplot matrix，互相为横纵坐标
+
+fitLm1 = lm(consumption~dpi+cpi+government+unemp) 
+summary(fitLm1)
+confint(fitLm1)   #Computes confidence intervals for one or more parameters in a fitted model.
+anova(fitLm1)
+
+library(MASS)
+fitLm2 = stepAIC(fitLm1)
+summary(fitLm2)
+AIC(fitLm1)
+AIC(fitLm2)
+AIC(fitLm1)-AIC(fitLm2)
+
+install.packages("car")
+library(car)
+vif(fitLm1)
+vif(fitLm2)
 
 
+par(mfrow=c(2,2))
+sp = 0.8
+crPlot(fitLm1,dpi,span=sp,col="black")
+crPlot(fitLm1,cpi,span=sp,col="black")
+crPlot(fitLm1,government,span=sp,col="black")
+crPlot(fitLm1,unemp,span=sp,col="black")
+```
