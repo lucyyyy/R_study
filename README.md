@@ -344,23 +344,206 @@ summary(fitLm1)
 confint(fitLm1)   #Computes confidence intervals for one or more parameters in a fitted model.
 anova(fitLm1)
 
-library(MASS)
+library(MASS)     #variables selection: use stepAIC() in the MASS package
 fitLm2 = stepAIC(fitLm1)
 summary(fitLm2)
 AIC(fitLm1)
 AIC(fitLm2)
 AIC(fitLm1)-AIC(fitLm2)
 
-install.packages("car")
+install.packages("car")  #The function vif in the car package will compute variance inflation factors
 library(car)
-vif(fitLm1)
+vif(fitLm1)    #vif test the correlation of one factor with others 1:no collinearity 4 need check 10 serious collinearity
 vif(fitLm2)
 
 
 par(mfrow=c(2,2))
-sp = 0.8
-crPlot(fitLm1,dpi,span=sp,col="black")
+sp = 0.8   #值越大，smooth程度越大
+crPlot(fitLm1,dpi,span=sp,col="black")  #crplot means (component plus residual plot) or (partial residual plot)用来看是否线性关系
 crPlot(fitLm1,cpi,span=sp,col="black")
 crPlot(fitLm1,government,span=sp,col="black")
-crPlot(fitLm1,unemp,span=sp,col="black")
+crPlot(fitLm1,unemp,span=sp,col="black")#A substantial deviation of the lowess curve from the least-squares line is an indication that                                            #the effect of the predictor is nonlinear
+```
+### Rlab2_2.R
+## 3 CAPM
+### Rlab3.R
+```
+setwd("D:\\PRGS\\R")
+dat = read.csv("Rlab3_Stock_FX_Bond_2004_to_2006.csv",header=T)
+prices = dat[,c(5,7,9,11,13,15,17,24)]
+n = dim(prices)[1]  #一维dimension of price
+
+dat2 = as.matrix(cbind(dat[(2:n),3]/365, 100*(prices[2:n,]/prices[1:(n-1),] - 1))) #convert the risk-free rate to a daily rate, compute net returns
+names(dat2)[1] = "treasury"
+risk_free = dat2[,1]
+ExRet = dat2[,2:9] - risk_free
+market = ExRet[,8]
+stockExRet = ExRet[,1:7]
+
+fit_reg = lm(stockExRet~market)
+summary(fit_reg)
+res = residuals(fit_reg)  #compute the residuals
+pairs(res)
+options(digits=3)
+betas=fit_reg$coeff[2,]  #提取beta出来
+
+betas*mean(market) 
+apply(stockExRet,2,mean)   #把stockExret 按列 求mean
+#以上两行在比较 用model estimate的excess return和用sample mean算出来的有什么区别
+
+res = residuals(fit_reg)
+options(digits=3)
+cor(res)
+
+4*betas
+```
+## 5 NTS
+### Rlab5.R
+```
+install.packages("Ecdat")
+data(Tbrate,package="Ecdat")
+install.packages("tseries")
+library(tseries)
+# r = the 91-day treasury bill rate
+# y = the log of real GDP
+# pi = the inflation rate
+plot(Tbrate)      #初步看是否mean-reverting 来判断stationarity
+acf(Tbrate)
+adf.test(Tbrate[,1])   #augmented Dickey-Fuller test: p-value <0.05(0.1)才可以reject null
+adf.test(Tbrate[,2])
+adf.test(Tbrate[,3])
+
+diff_rate = diff(Tbrate)
+adf.test(diff_rate[,1])
+adf.test(diff_rate[,2])
+adf.test(diff_rate[,3])
+pairs(diff_rate) # scatterplot matrix  查看cross-sectional association
+plot(diff_rate) # time series plots  (The plot function would create a scatterplot matrix if the 
+##data were in a data.frame rather than having “class" time series (ts). Check the class of diff_rate with attr(diff_rate,"class").
+acf(diff_rate)
+
+par(mfrow=c(1,1))
+boxplot(diff_rate[,1] ~ cycle(diff_rate))  #cycle函数extract quarterly period 
+
+install.packages("forecast")
+library(forecast)
+auto.arima(Tbrate[,1],max.P=0,max.Q=0,ic="aic")  #P.Q是season模型的ar.ma阶数
+auto.arima(Tbrate[,1],max.P=0,max.Q=0,ic="bic")
+
+fit1 = arima(Tbrate[,1],order=c(?,?,?))  #?里面填刚才跑的结果
+acf(residuals(fit1))
+Box.test(residuals(fit1), lag = 10, type="Ljung")  #检查是否有autocorrelation,p<0.1有
+
+resid2 = residuals(fit1)^2
+acf(resid2)
+Box.test(resid2, lag = 10, type="Ljung") #以上检查residual 平方是否有autocorrelation
+
+###以下讲如何用R forecast
+
+data(Tbrate,package="Ecdat")
+# r = the 91-day Treasury bill rate
+# y = the log of real GDP
+# pi = the inflation rate
+# fit the nonseasonal ARIMA model found by auto.arima
+attach(as.list(Tbrate))
+auto.arima(pi,max.P=0,max.Q=0,ic="bic")
+fit = arima(pi,order=c(?,?,?))
+forecasts = predict(fit,36)  #往前36期
+plot(pi,xlim=c(1980,2006),ylim=c(-7,12))
+lines(seq(from=1997,by=.25,length=36), forecasts$pred,col="red")
+lines(seq(from=1997,by=.25,length=36), forecasts$pred + 1.96*forecasts$se,col="blue")
+lines(seq(from=1997,by=.25,length=36), forecasts$pred - 1.96*forecasts$se,col="blue")
+#注意预测到后来不再波动，是因为auto.arima假设zero-mean for difference, 后面就趋于0 【不确定哦】
+```
+## 6 GARCH
+### Rlab6.R
+```
+install.packages("Ecdat")
+install.packages("tseries")
+install.packages("fGarch")
+data(Tbrate,package="Ecdat")
+library(tseries)
+library(fGarch)
+# r = the 91-day treasury bill rate
+# y = the log of real GDP
+# pi = the inflation rate
+Tbill = Tbrate[,1]
+Del.Tbill = diff(Tbill)
+del.log.tbill = diff(log(Tbill))
+Del.Tbill2 =Del.Tbill^2
+
+adf.test(Tbill)  #null是non-stationary 
+kpss.test(Tbill)  #null是stationary 
+
+par(mfrow=c(2,2))
+acf(Del.Tbill)
+pacf(Del.Tbill)
+acf(Del.Tbill2)
+pacf(Del.Tbill2)
+
+garch.model.Tbill = garchFit(formula= ~arma(1,0) + garch(1,0),Del.Tbill)
+summary(garch.model.Tbill)
+garch.model.Tbill@fit$matcoef
+
+res = residuals(garch.model.Tbill)
+res_std = res / garch.model.Tbill@sigma.t
+par(mfrow=c(2,3))
+plot(res)
+acf(res)
+acf(res^2)
+plot(res_std)
+acf(res_std)
+acf(res_std^2)
+
+garch.model.log.Tbill = garchFit(formula= ~arma(1,0) + garch(1,0),del.log.tbill)
+summary(garch.model.log.Tbill)
+garch.model.log.Tbill@fit$matcoef
+
+res = residuals(garch.model.log.Tbill)
+res_std = res / garch.model.log.Tbill@sigma.t
+par(mfrow=c(2,3))
+plot(res)
+acf(res)
+acf(res^2)
+plot(res_std)
+acf(res_std)
+acf(res_std^2)
+
+#The advantage of using a log transformation prior to taking differences is that the log 
+#transformation removes a type of heteroscedasticity that GARCH models cannot model adequately,
+#specifically that in the original Tbill series the conditional variance of the difference is
+#proportional to the rate.
+```
+### Rlab6_2.R
+```
+install.packages("Ecdat") 
+install.packages("fGarch") 
+library(Ecdat)
+library(fGarch)
+data(SP500,package="Ecdat")
+returnBlMon = SP500$r500[1805]
+x = SP500$r500[(1804-2*253+1):1804]
+plot(c(x,returnBlMon))
+results = garchFit(~arma(1,0)+garch(1,1),data=x,cond.dist="std")
+dfhat = as.numeric(results@fit$par[6])
+forecast = predict(results,n.ahead=1)  #n.ahead specifies how many days ahead to forecast
+
+probBlackMonday = pstd(returnBlMon,mean=forecast$meanForecast,sd=forecast$standardDeviation,nu=dfhat)
+round(probBlackMonday,7) 
+
+std_res =results@residuals/results@sigma.t 
+par(mfrow=c(1,3))
+plot(std_res) 
+acf(std_res) 
+acf(std_res^2)
+
+summary(results)
+
+fitAR1 = arima(x,order=c(1,0,0))
+fitAR1 
+par(mfrow=c(1,3))
+residAR1 = residuals(fitAR1)
+plot(residAR1) 
+acf(residAR1) 
+acf(residAR1^2)
 ```
